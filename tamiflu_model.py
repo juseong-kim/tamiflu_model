@@ -8,17 +8,19 @@ ke = 0.136  # OC elimintation rate
 
 Go = 75  # initial dose of 75mg
 OPo = Go * ka
-t = np.arange(0, 24, .1)  # 24 hours, iterate by tenth of hour
+t = np.arange(0, 36, .1)  # 24 hours, iterate by tenth of hour
 
-tdose = 12 # time between doses in hours
-
+tdose = 12  # time between doses in hours
+dt = .1 # dose time
+second_dose = False
 
 
 def dose(t):
-    if t % tdose <= .1:
-        return Go
+    if t % tdose <= dt:
+        return Go / dt
     else:
         return 0
+
 
 def OP_metabolism(Y, t):
     G = Y[0]
@@ -29,7 +31,18 @@ def OP_metabolism(Y, t):
     dOPdt = ka * G - kf * OP
     dOCdt = kf * OP - ke * OC
 
-    return [dGdt, dOPdt, dOCdt]
+    return [dGdt, dOPdt, dOCdt, Y[3]]
+
+def OP_metabolism_multidose(Y, t):
+    G = Y[0] + dose(t)
+    OP = Y[1]
+    OC = Y[2]
+
+    dGdt = -1 * ka * G
+    dOPdt = ka * G - kf * OP
+    dOCdt = kf * OP - ke * OC
+
+    return [dGdt, dOPdt, dOCdt, Y[3]]
 
 
 def plot(G, OP, OC):
@@ -43,7 +56,7 @@ def plot(G, OP, OC):
     # ax.plot(t, go, 'g-', label='Other Conductance', markevery=10)
 
     # Set labels and turn grid on
-    ax.set(xlabel='Time $t$, hrs', ylabel=r'Concentration', title='Tamiflu Uptake')
+    ax.set(xlabel='Time $t$, hrs', ylabel=r'Concentration', title='Tamiflu Single Dose')
     ax.grid(True)
     ax.legend(loc='best')
     # Use space most effectively
@@ -52,7 +65,7 @@ def plot(G, OP, OC):
     fig.savefig('Oseltamivir_Metabolism.png')
 
 
-Yo = [Go, 0, 0]  # initial conditions of G, dose, is 75mg and OP and OC are both 0
+Yo = [75, 0, 0, False]  # initial conditions of G, dose, is 75mg and OP and OC are both 0
 
 out = odeint(OP_metabolism, Yo, t)
 G = out[:, 0]
