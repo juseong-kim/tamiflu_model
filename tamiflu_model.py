@@ -26,27 +26,28 @@ def OP_metabolism_multidose(Y, t):
     return [dGdt, dOPdt, dOCdt]
 
 
-def plot(G, OP, OC, t):
+def plot(G, OP, OC, t, forgotten_dose):
     fig = plt.figure(num=1, clear=True)
     ax = fig.add_subplot(1, 1, 1)
     # Plot using red circles
     ax.plot(t, G, 'b-', label='Oral OP Cocentration', markevery=10)
     ax.plot(t, OP, 'r-', label='Plasma OP Concentration', markevery=10)
     ax.plot(t, OC, 'g-', label='Plasma OC Concentration', markevery=10)
-
+    if forgotten_dose:
+        plt.axvline(forgotten_dose, color='r', linestyle='--')  # plots a line where a dose was forgotten
     # ax.plot(t, go, 'g-', label='Other Conductance', markevery=10)
 
     # Set labels and turn grid on
-    ax.set(xlabel='Time $t$, hrs', ylabel=r'Concentration', title='Tamiflu Single Dose')
+    ax.set(xlabel='Time $t$, hrs', ylabel=r'Concentration', title='Tamiflu Multiple Doses')
     ax.grid(True)
     ax.legend(loc='best')
     # Use space most effectively
     fig.tight_layout()
     # Save as a PNG file
-    fig.savefig('Oseltamivir_Metabolism.png')
+    fig.savefig('Oseltamivir_Metabolism_Multidose.png')
 
 
-def dosing(tdose, num_doses):
+def dosing(tdose, num_doses, forgotten_dose=0):
     dose = 1  # Indexing from 1 feels dirty, but its the way that I have to store time data
     G = []  # Outer variable storage for overall concentrations
     OP = []
@@ -55,6 +56,7 @@ def dosing(tdose, num_doses):
     Yo = [75, 0, 0]  # initial conditions of G, dose, is 75mg and OP and OC are both 0
     t = np.arange(0, tdose, .01)  # 12 hours, iterate by the minute
     while dose <= num_doses:
+
         # This function runs a new ODE for each dose, saving the final condition of one dose
         # and feeding it in as the initial condition of the next dose
         # lower case letters represent concentration after a given dose, upper case are total concentrations
@@ -69,13 +71,17 @@ def dosing(tdose, num_doses):
 
         T.extend(t + dose * tdose)
         dose += 1
-        added_dose = g[len(g) - 1] + 75
+        if dose == forgotten_dose:
+            added_dose = g[len(g) - 1]
+        else:
+            added_dose = g[len(g) - 1] + 75
+
         Yo = [added_dose, op[len(op) - 1], oc[len(oc) - 1]]
 
     print(G)
     print(OP)
     print(OC)
-    plot(G, OP, OC, T)
+    plot(G, OP, OC, T, forgotten_dose * tdose)
 
 
 dosing(12, 7)  # Function call for the dosing equation, frequency of dosing, number of doses
