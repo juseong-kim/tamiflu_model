@@ -10,7 +10,7 @@ Go = 75  # initial dose of 75mg
 OPo = Go * ka
 
 tdose = 12  # time between doses in hours
-num_doses = 4
+num_doses = 30
 dt = .1  # dose time
 
 To = 7e7  # initial number of epithelial cells in upper respiratory
@@ -22,9 +22,9 @@ InfectionRate = 1.25e-9  # Rate of infection of target cells by virus, (EID50/mL
 InfectedDeathRate = 0.0833333  # h^-1
 MaxAntiviralEffect = .98
 
-EC50 = 30  # Concentration of drug reaching half-maximal effect, not sure where this number came from
+EC50 = 30  # Concentration of drug reaching half-maximal effect,
 ViralProdRate = 8.75  # *EID50/mL) cell^-1 h^-1
-ViralClearanceRate = .2083333  # Nonspecific h^-1
+ViralClearanceRate = .5  # Nonspecific viral clearance h^-1
 ViralConsumption = 2.08333e-8  # Rate of viral consumption by binding to target cells, cell^-1 h^-1
 
 
@@ -46,9 +46,8 @@ def OP_metabolism_multidose(Y, t):
     V = Y[5]
 
     urtOC = .95 * OC  # for the below calculations, OC is taken to be in ng/ml, which is equal to ug/L
-
-    AntiviralEffect = (MaxAntiviralEffect * urtOC) / (urtOC + EC50)
-    dTdt = gt * T * (1 - (T + I) / To) - InfectionRate * V * T
+    AntiviralEffect = 0#(MaxAntiviralEffect * urtOC) / (urtOC + EC50)
+    dTdt = gt * T * (1 - (T + I)/7e7) - InfectionRate * V * T
     dIdt = InfectionRate * V * T - InfectedDeathRate * I
     dVdT = (1 - AntiviralEffect) * ViralProdRate * I - ViralClearanceRate * V - ViralConsumption * V * T
 
@@ -59,7 +58,7 @@ def plot(G, OP, OC, t, T, I, V, forgotten_dose):
     fig = plt.figure(num=1, clear=True)
     ax = fig.add_subplot(1, 1, 1)
     # Plot using red circles
-    ax.plot(t, G, 'b-', label='Oral OP Cocentration', markevery=10)
+    #ax.plot(t, G, 'b-', label='Oral OP Cocentration', markevery=10)
     ax.plot(t, OP, 'r-', label='Plasma OP Concentration', markevery=10)
     ax.plot(t, OC, 'g-', label='Plasma OC Concentration', markevery=10)
     if forgotten_dose:
@@ -77,11 +76,12 @@ def plot(G, OP, OC, t, T, I, V, forgotten_dose):
     # Create Figure for Viral Data
 
     fig = plt.figure(num=1, clear=True)
-    ax = fig.add_subplot(1, 2, 1)
+    ax = fig.add_subplot(2, 1, 1)
+
     # Plot using red circles
     ax.plot(t, T, 'b-', label='Target Cells', markevery=10)
     ax.plot(t, I, 'r-', label='Infected Cells', markevery=10)
-    ax2 = fig.add_subplot(1,2,2)
+    ax2 = fig.add_subplot(2,1,2)
     ax2.plot(t, np.log(V), 'g-', label='Free Virus', markevery=10)
 
     # Set labels and turn grid on
@@ -93,6 +93,7 @@ def plot(G, OP, OC, t, T, I, V, forgotten_dose):
     ax2.grid(True)
     ax2.legend(loc='best')
     # Use space most effectively
+    plt.ylim([0, 25])  # set bounds on Y axis for free virus concentration
     fig.tight_layout()
     # Save as a PNG file
     fig.savefig('Viral_Model.png')
@@ -108,7 +109,7 @@ def dosing(tdose, num_doses, forgotten_dose=0):
     V = []
 
     time = []
-    Yo = [75, 0, 0, To, Io, Vo]  # initial conditions of G, dose, is 75mg and OP and OC are both 0
+    Yo = [150, 0, 0, To, Io, Vo]  # initial conditions of G, dose, is 75mg and OP and OC are both 0
     t = np.arange(0, tdose, .01)  # 12 hours, iterate by the minute
     while dose <= num_doses:
 
@@ -136,15 +137,17 @@ def dosing(tdose, num_doses, forgotten_dose=0):
         if dose == forgotten_dose:
             added_dose = g[len(g) - 1]
         else:
-            added_dose = g[len(g) - 1] + 75
+            added_dose = g[len(g) - 1] + 150
 
         Yo = [added_dose, op[len(op) - 1], oc[len(oc) - 1], target_cells[len(target_cells) - 1],
               i[len(i) - 1], v[len(v) - 1]]
         # set initial conditions for the next loop equal to the last values from the previous loop
 
-    print(G)
+    """print(G)
     print(OP)
-    print(OC)
+    print(OC)"""
+    print(np.argmin(T))
+    print(np.min(T))
     plot(G, OP, OC, time, T, I, V, forgotten_dose * tdose)
 
 
@@ -160,11 +163,11 @@ def viral_growth(Y, t):
 
     return [dTdt, dIdt, dVdT]
 
-
+'''
 t = np.arange(0, 200, .01)
 
 out = odeint(viral_growth, [To, Io, Vo], t)
 print(out)
-plot(t, t , t, t, out[:,0], out[:,1], out[:,2], 0)
+plot(t, t , t, t, out[:,0], out[:,1], out[:,2], 0)'''
 
-# dosing(12, 7)  # Function call for the dosing equation, frequency of dosing, number of doses
+dosing(12, 48)  # Function call for the dosing equation, frequency of dosing, number of doses
