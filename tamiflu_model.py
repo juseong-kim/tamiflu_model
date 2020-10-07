@@ -13,6 +13,24 @@ tdose = 12  # time between doses in hours
 num_doses = 4
 dt = .1  # dose time
 
+To = 7e7  # initial number of epithelial cells in upper respiratory
+Vo = 1e4  # initial free virus
+Io = 0  # initial infected cells
+
+gt = .03333  # Basal growth rate of healthy cells, h^-1
+InfectionRate = 1.25e-9  # Rate of infection of target cells by virus, (EID50/mL)-1 h^-1
+InfectedDeathRate = 0.0833333  # h^-1
+MaxAntiviralEffect = .98
+
+EC50 = 30  # Concentration of drug reaching half-maximal effect, not sure where this number came from
+ViralProdRate = 8.75  # *EID50/mL) cell^-1 h^-1
+ViralClearanceRate = .2083333  # Nonspecific h^-1
+ViralConsumption = 2.08333e-8  # Rate of viral consumption by binding to target cells, cell^-1 h^-1
+
+
+# T is target cells
+# I is infected cells
+# V is free virus
 
 def OP_metabolism_multidose(Y, t):
     G = Y[0]
@@ -23,10 +41,21 @@ def OP_metabolism_multidose(Y, t):
     dOPdt = ka * G - kf * OP
     dOCdt = kf * OP - ke * OC
 
-    return [dGdt, dOPdt, dOCdt]
+    T = Y[3]
+    I = Y[4]
+    V = Y[5]
+
+    urtOC = .95 * OC  # for the below calculations, OC is taken to be in ng/ml, which is equal to ug/L
+
+    AntiviralEffect = (MaxAntiviralEffect * urtOC) / (urtOC + EC50)
+    dTdt = gt * T * (1 - (T + I) / To) - InfectionRate * V * T
+    dIdt = InfectionRate * V * T - InfectedDeathRate * I
+    dVdT = (1 - AntiviralEffect) * ViralProdRate * I - ViralClearanceRate * V - ViralConsumption * V * T
+
+    return [dGdt, dOPdt, dOCdt, dTdt, dIdt, dVdT]
 
 
-def plot(G, OP, OC, t, forgotten_dose):
+def plot(G, OP, OC, t, T, I, V, forgotten_dose):
     fig = plt.figure(num=1, clear=True)
     ax = fig.add_subplot(1, 1, 1)
     # Plot using red circles
@@ -34,8 +63,7 @@ def plot(G, OP, OC, t, forgotten_dose):
     ax.plot(t, OP, 'r-', label='Plasma OP Concentration', markevery=10)
     ax.plot(t, OC, 'g-', label='Plasma OC Concentration', markevery=10)
     if forgotten_dose:
-        plt.axvline(forgotten_dose, color='r', linestyle='--')  # plots a line where a dose was forgotten
-    # ax.plot(t, go, 'g-', label='Other Conductance', markevery=10)
+        plt.axvline(forgotten_dose, color='r', linestyle='--')
 
     # Set labels and turn grid on
     ax.set(xlabel='Time $t$, hrs', ylabel=r'Concentration', title='Tamiflu Multiple Doses')
@@ -46,6 +74,29 @@ def plot(G, OP, OC, t, forgotten_dose):
     # Save as a PNG file
     fig.savefig('Oseltamivir_Metabolism_Multidose.png')
 
+    # Create Figure for Viral Data
+
+    fig = plt.figure(num=1, clear=True)
+    ax = fig.add_subplot(1, 2, 1)
+    # Plot using red circles
+    ax.plot(t, T, 'b-', label='Target Cells', markevery=10)
+    ax.plot(t, I, 'r-', label='Infected Cells', markevery=10)
+    ax2 = fig.add_subplot(1,2,2)
+    ax2.plot(t, np.log(V), 'g-', label='Free Virus', markevery=10)
+
+    # Set labels and turn grid on
+    ax.set(xlabel='Time $t$, hrs', ylabel=r'Concentration', title='Viral Model')
+    ax.grid(True)
+    ax.legend(loc='best')
+
+    ax2.set(xlabel='Time $t$, hrs', ylabel=r'Concentration Log(V)')
+    ax2.grid(True)
+    ax2.legend(loc='best')
+    # Use space most effectively
+    fig.tight_layout()
+    # Save as a PNG file
+    fig.savefig('Viral_Model.png')
+
 
 def dosing(tdose, num_doses, forgotten_dose=0):
     dose = 1  # Indexing from 1 feels dirty, but its the way that I have to store time data
@@ -53,7 +104,11 @@ def dosing(tdose, num_doses, forgotten_dose=0):
     OP = []
     OC = []
     T = []
-    Yo = [75, 0, 0]  # initial conditions of G, dose, is 75mg and OP and OC are both 0
+    I = []
+    V = []
+
+    time = []
+    Yo = [75, 0, 0, To, Io, Vo]  # initial conditions of G, dose, is 75mg and OP and OC are both 0
     t = np.arange(0, tdose, .01)  # 12 hours, iterate by the minute
     while dose <= num_doses:
 
@@ -65,23 +120,51 @@ def dosing(tdose, num_doses, forgotten_dose=0):
         g = out[:, 0]
         op = out[:, 1]
         oc = out[:, 2]
+        target_cells = out[:, 3]
+        i = out[:, 4]
+        v = out[:, 5]
+
         G.extend(g)
         OP.extend(op)
         OC.extend(oc)
+        T.extend(target_cells)
+        I.extend(i)
+        V.extend(v)  # adding the individual run values to the overall lists
 
-        T.extend(t + dose * tdose)
+        time.extend(t + dose * tdose)
         dose += 1
         if dose == forgotten_dose:
             added_dose = g[len(g) - 1]
         else:
             added_dose = g[len(g) - 1] + 75
 
-        Yo = [added_dose, op[len(op) - 1], oc[len(oc) - 1]]
+        Yo = [added_dose, op[len(op) - 1], oc[len(oc) - 1], target_cells[len(target_cells) - 1],
+              i[len(i) - 1], v[len(v) - 1]]
+        # set initial conditions for the next loop equal to the last values from the previous loop
 
     print(G)
     print(OP)
     print(OC)
-    plot(G, OP, OC, T, forgotten_dose * tdose)
+    plot(G, OP, OC, time, T, I, V, forgotten_dose * tdose)
 
 
-dosing(12, 7)  # Function call for the dosing equation, frequency of dosing, number of doses
+def viral_growth(Y, t):
+    T = Y[0]
+    I = Y[1]
+    V = Y[2]
+
+    AntiviralEffect = 0
+    dTdt = gt * T * (1 - (T + I) / To) - InfectionRate * V * T
+    dIdt = InfectionRate * V * T - InfectedDeathRate * I
+    dVdT = (1 - AntiviralEffect) * ViralProdRate * I - ViralClearanceRate * V - ViralConsumption * V * T
+
+    return [dTdt, dIdt, dVdT]
+
+
+t = np.arange(0, 200, .01)
+
+out = odeint(viral_growth, [To, Io, Vo], t)
+print(out)
+plot(t, t , t, t, out[:,0], out[:,1], out[:,2], 0)
+
+# dosing(12, 7)  # Function call for the dosing equation, frequency of dosing, number of doses
