@@ -15,7 +15,7 @@ kf = 0.684  # OP to OC conversion rate
 ke = 0.136  # OC elimintation rate
 
 Go = 75  # initial dose of 75mg
-OPo = Go * ka
+
 
 tdose = 12  # time between doses in hours
 dt = .1  # dose time
@@ -48,18 +48,18 @@ def OP_metabolism_multidose(Y, t):
     T = Y[3]
     I = Y[4]
     V = Y[5]
-    
+
     dGdt = -1 * ka * G
     dOPdt = ka * G - kf * OP
-    #dOCdt = kf * OP -  599.4 * OC * V * t
-    dOCdt = kf * OP - (2.159e-15 * V * t) - (ke * OC) #account for the rate at which OC is cleared from the lungs
-    #This is assumed to be equal to the viral clearance rate, as OC binds the virus to inhibit further growth, thus
-    #leaving the body at the same rate as the virus
-    #dOCdt = kf * OP - ke * OC
+    # dOCdt = kf * OP -  599.4 * OC * V * t
+    dOCdt = kf * OP - (ke * OC)
 
-   
+    urtOC = OC - (V * 2.159e-15)  # for the below calculations, OC is taken to be in ng/ml, which is equal to ug/L
 
-    urtOC = .95 * OC  # for the below calculations, OC is taken to be in ng/ml, which is equal to ug/L
+    # account for the rate at which OC is cleared from the lungs
+    # This is assumed to be equal to the viral clearance rate, as OC binds the virus to inhibit further growth, thus
+    # leaving the body at the same rate as the virus
+    # dOCdt = kf * OP - ke * OC
     AntiviralEffect = (MaxAntiviralEffect * urtOC) / (urtOC + EC50)
     dTdt = gt * T * (1 - (T + I) / To) - InfectionRate * V * T
     dIdt = InfectionRate * V * T - InfectedDeathRate * I
@@ -72,17 +72,17 @@ def plot(G, OP, OC, t, T, I, V, plot_name, forgotten_dose):
     fig = plt.figure(num=1, clear=True)
     ax = fig.add_subplot(1, 1, 1)
     # Plot using red circles
-    # ax.plot(t, G, 'b-', label='Oral OP Cocentration', markevery=10)
+    # ax.plot(t, G, 'b-', label='Oral OP Concentration (μg/L)', markevery=10)
     ax.plot(t, OP, 'r-', label='Plasma OP Concentration', markevery=10)
-    ax.plot(t, OC, 'g-', label='Plasma OC Concentration', markevery=10)
+    ax.plot(t, OC, 'g-', label='Plasma OC Concentration ', markevery=10)
 
     if forgotten_dose:
         plt.axvline(forgotten_dose, color='r', linestyle='--')
 
     # Set labels and turn grid on
-    ax.set(xlabel='Time $t$, hrs', ylabel=r'Concentration', title='Tamiflu Multiple Doses')
+    ax.set(xlabel='Time $t$, hrs', ylabel=r'Concentration $μg/L$', title='Tamiflu Multiple Doses')
     ax.grid(True)
-    ax.legend(loc='best')
+    ax.legend(loc='lower right')
     # Use space most effectively
     fig.tight_layout()
     # Save as a PNG file
@@ -117,7 +117,7 @@ def plot(G, OP, OC, t, T, I, V, plot_name, forgotten_dose):
     fig.savefig('Viral_Model_{}.png'.format(plot_name))
 
 
-def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0):
+def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0, loading_dose=False):
     dose = 1  # Indexing from 1 feels dirty, but its the way that I have to store time data
     G = []  # Outer variable storage for overall concentrations
     OP = []
@@ -128,6 +128,12 @@ def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0)
 
     time = []
     Yo = [0, 0, 0, To, Io, Vo]  # initial conditions of G, dose, is 75mg and OP and OC are both 0
+    applied_loading_dose = False  # so that we can know not to apply the larger does multiple times
+
+    if loading_dose and not dose_delay:
+        Yo[0] = dose_size * 1.25  # Initial dose is loading
+        applied_loading_dose = True
+
     t = np.arange(0, tdose, .01)  # 12 hours, iterate by the minute
     while dose <= num_doses:
 
@@ -135,8 +141,8 @@ def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0)
         # and feeding it in as the initial condition of the next dose
         # lower case letters represent concentration after a given dose, upper case are total concentrations
 
-        if not dose_delay:
-            Yo[0] = dose_size  # if there's no delay for treatment, set the initial drug dose to dose size
+        if not dose_delay and not loading_dose:
+            Yo[0] = dose_size  # if there's no delay for treatment, set the initial drug dose to dose size * 1.25
 
         out = odeint(OP_metabolism_multidose, Yo, t)
         g = out[:, 0]
@@ -158,6 +164,10 @@ def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0)
 
         if dose == forgotten_dose or dose < dose_delay:
             added_dose = g[len(g) - 1]
+        elif dose >= dose_delay and loading_dose and not applied_loading_dose:
+            added_dose = g[len(g) - 1] + dose_size * 1.25
+            print("loading")
+            applied_loading_dose = True
         elif dose >= dose_delay:
             added_dose = g[len(g) - 1] + dose_size
 
@@ -168,8 +178,10 @@ def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0)
     """print(G)
     print(OP)
     print(OC)"""
-    print(np.argmin(T))
-    print(np.min(T))
+
+    print("OP Max: {}".format(np.max(OP)))
+    print("OC Max: {}".format(np.max(OC)))
+    print("Infected Cell Max: {}".format(time[np.argmax(I)]))
     plot(G, OP, OC, time, T, I, V, plot_name, forgotten_dose * tdose)
 
 
@@ -186,12 +198,8 @@ def viral_growth(Y, t):
     return [dTdt, dIdt, dVdT]
 
 
-'''
-t = np.arange(0, 200, .01)
-out = odeint(viral_growth, [To, Io, Vo], t)
-print(out)
-plot(t, t , t, t, out[:,0], out[:,1], out[:,2], 0)'''
+plot_name = input("Plot Name: ")
 
-dosing(dose_size=Go, tdose=tdose, num_doses=14, dose_delay=1, plot_name="14Dose_1DoseDelay_Dose5Forget_75mg", forgotten_dose=5)
+dosing(dose_size=75, tdose=12, num_doses=14, dose_delay=0, plot_name=plot_name, forgotten_dose=0, loading_dose=False)
 # Function call for the dosing equation, dose size in mg, frequency of dosing, number of doses, number of doses
 # missed after onset of infection
