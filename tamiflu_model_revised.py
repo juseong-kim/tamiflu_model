@@ -129,6 +129,7 @@ def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0,
     time = []
     Yo = [0, 0, 0, To, Io, Vo]  # initial conditions of G, dose, is 75mg and OP and OC are both 0
     applied_loading_dose = False  # so that we can know not to apply the larger does multiple times
+    first_dose = True
 
     if loading_dose and not dose_delay:
         Yo[0] = dose_size * 1.25  # Initial dose is loading
@@ -141,8 +142,10 @@ def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0,
         # and feeding it in as the initial condition of the next dose
         # lower case letters represent concentration after a given dose, upper case are total concentrations
 
-        if not dose_delay and not loading_dose:
+        if not dose_delay and not loading_dose and first_dose:
             Yo[0] = dose_size  # if there's no delay for treatment, set the initial drug dose to dose size * 1.25
+            print(dose)
+            first_dose = False
 
         out = odeint(OP_metabolism_multidose, Yo, t)
         g = out[:, 0]
@@ -161,7 +164,6 @@ def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0,
 
         time.extend(t + dose * tdose)
         dose += 1
-
         if dose == forgotten_dose or dose < dose_delay:
             added_dose = g[len(g) - 1]
         elif dose >= dose_delay and loading_dose and not applied_loading_dose:
@@ -169,10 +171,12 @@ def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0,
             print("loading")
             applied_loading_dose = True
         elif dose >= dose_delay:
+            print("Dose #: {}".format(dose))
             added_dose = g[len(g) - 1] + dose_size
 
         Yo = [added_dose, op[len(op) - 1], oc[len(oc) - 1], target_cells[len(target_cells) - 1],
               i[len(i) - 1], v[len(v) - 1]]
+
         # set initial conditions for the next loop equal to the last values from the previous loop
 
     """print(G)
@@ -181,6 +185,7 @@ def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0,
 
     print("OP Max: {}".format(np.max(OP)))
     print("OC Max: {}".format(np.max(OC)))
+    print("I Max: {}".format(np.max(I)))
     print("Infected Cell Max: {}".format(time[np.argmax(I)]))
     plot(G, OP, OC, time, T, I, V, plot_name, forgotten_dose * tdose)
 
@@ -200,6 +205,6 @@ def viral_growth(Y, t):
 
 plot_name = input("Plot Name: ")
 
-dosing(dose_size=150, tdose=24, num_doses=7, dose_delay=0, plot_name=plot_name, forgotten_dose=0, loading_dose=False)
+dosing(dose_size=75, tdose=12, num_doses=14, dose_delay=0, plot_name=plot_name, forgotten_dose=5, loading_dose=False)
 # Function call for the dosing equation, dose size in mg, frequency of dosing, number of doses, number of doses
 # missed after onset of infection
