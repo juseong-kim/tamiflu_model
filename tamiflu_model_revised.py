@@ -54,7 +54,7 @@ def OP_metabolism_multidose(Y, t):
     # dOCdt = kf * OP -  599.4 * OC * V * t
     dOCdt = kf * OP - (ke * OC)
 
-    urtOC = OC - (V * 2.159e-15)  # for the below calculations, OC is taken to be in ng/ml, which is equal to ug/L
+    urtOC = OC*.95 - (V * 2.159e-15)  # for the below calculations, OC is taken to be in ng/ml, which is equal to ug/L
 
     # account for the rate at which OC is cleared from the lungs
     # This is assumed to be equal to the viral clearance rate, as OC binds the virus to inhibit further growth, thus
@@ -100,14 +100,14 @@ def plot(G, OP, OC, t, T, I, V, plot_name, forgotten_dose):
     ax2.plot(t, np.log(V), 'g-', label='Free Virus', markevery=10)
 
     # Set labels and turn grid on
-    ax.set(xlabel='Time $t$, hrs', ylabel=r'Concentration', title='Viral Model')
+    ax.set(xlabel='Time $t$, hrs', ylabel=r'Cell Count', title='Viral Model')
     ax.grid(True)
     ax.legend(loc='best')
 
     if forgotten_dose:
         plt.axvline(forgotten_dose, color='r', linestyle='--')
 
-    ax2.set(xlabel='Time $t$, hrs', ylabel=r'Concentration Log(V)')
+    ax2.set(xlabel='Time $t$, hrs', ylabel=r'Free Virus Count Log(V)')
     ax2.grid(True)
     ax2.legend(loc='best')
     # Use space most effectively
@@ -200,6 +200,6 @@ def viral_growth(Y, t):
 
 plot_name = input("Plot Name: ")
 
-dosing(dose_size=75, tdose=12, num_doses=14, dose_delay=0, plot_name=plot_name, forgotten_dose=0, loading_dose=False)
+dosing(dose_size=150, tdose=24, num_doses=7, dose_delay=0, plot_name=plot_name, forgotten_dose=0, loading_dose=False)
 # Function call for the dosing equation, dose size in mg, frequency of dosing, number of doses, number of doses
 # missed after onset of infection

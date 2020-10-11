@@ -154,8 +154,8 @@ def dosing(dose_size, tdose, num_doses, dose_delay, plot_name, forgotten_dose=0)
     """print(G)
     print(OP)
     print(OC)"""
-    print(np.argmin(T))
-    print(np.min(T))
+    print(np.argmax(OC))
+    print(np.max(OC))
     plot(G, OP, OC, time, T, I, V, plot_name, forgotten_dose * tdose)
 
 
@@ -179,7 +179,7 @@ out = odeint(viral_growth, [To, Io, Vo], t)
 print(out)
 plot(t, t , t, t, out[:,0], out[:,1], out[:,2], 0)'''
 
-dosing(dose_size=Go, tdose=tdose, num_doses=14, dose_delay=1, plot_name="14Dose_1DoseDelay_Dose5Forget_75mg", forgotten_dose=5)
+dosing(dose_size=75, tdose=12, num_doses=14, dose_delay=0, plot_name="NoOC_Week", forgotten_dose=0)
 # Function call for the dosing equation, dose size in mg, frequency of dosing, number of doses, number of doses
 # missed after onset of infection
 
