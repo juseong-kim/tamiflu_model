@@ -1,2 +1,2 @@
 
-# tamifliu_model
+# tamiflu pharmacokinetics model
